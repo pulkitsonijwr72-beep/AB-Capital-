@@ -1,0 +1,21 @@
+# Dependency directories
+node_modules/
+client/node_modules/
+server/node_modules/
+
+# Local databases
+server/prisma/dev.db
+server/prisma/dev.db-journal
+
+# Environments & secrets
+.env
+server/.env
+
+# Build outputs
+dist/
+build/
+.vite/
+
+# Operating system files
+.DS_Store
+Thumbs.db

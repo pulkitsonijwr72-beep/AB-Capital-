@@ -1,0 +1,19 @@
+{
+  "name": "ab-capital-root",
+  "version": "1.0.0",
+  "description": "AB Capital - Private Asset-Tracking and Ledger Platform",
+  "scripts": {
+    "install:server": "cd server && npm install",
+    "install:client": "cd client && npm install --legacy-peer-deps",
+    "install-all": "npm run install:server && npm run install:client",
+    "dev:server": "cd server && npm run dev",
+    "dev:client": "cd client && npm run dev",
+    "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
+    "db:setup": "cd server && npx prisma db push && npm run seed",
+    "db:studio": "cd server && npx prisma studio",
+    "seed": "cd server && npm run seed"
+  },
+  "dependencies": {
+    "concurrently": "^8.2.2"
+  }
+}

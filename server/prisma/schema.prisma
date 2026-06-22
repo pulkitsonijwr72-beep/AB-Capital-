@@ -1,0 +1,85 @@
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Fund {
+  id                Int      @id @default(autoincrement())
+  name              String
+  total_capital     Float    // Total capital capacity
+  allocated_capital Float    // Capital currently deployed in active loans
+  loans             Loan[]
+}
+
+model Borrower {
+  id                        Int      @id @default(autoincrement())
+  full_name                 String
+  phone                     String
+  email                     String
+  internal_structural_notes String
+  loans                     Loan[]
+}
+
+model Loan {
+  id                       Int                          @id @default(autoincrement())
+  borrower_id              Int
+  fund_id                  Int
+  principal_disbursed      Float
+  remaining_principal      Float                        // Outstanding principal
+  remaining_interest       Float                        @default(0.0) // Unpaid interest
+  remaining_penalty        Float                        @default(0.0) // Unpaid penalty
+  interest_rate_percentage Float
+  interest_type            String                       // "Flat" or "Simple"
+  issue_date               DateTime
+  maturity_due_date        DateTime
+  status                   String                       // "Active", "Overdue", "Settled"
+  
+  borrower                 Borrower                     @relation(fields: [borrower_id], references: [id], onDelete: Cascade)
+  fund                     Fund                         @relation(fields: [fund_id], references: [id], onDelete: Cascade)
+  penalty_tier_configs     PenaltyTierConfig[]
+  daily_ledger_accruals    DailyLedgerAccrual[]
+  recovery_transactions    RecoveryLedgerTransaction[]
+}
+
+model PenaltyTierConfig {
+  id                     Int   @id @default(autoincrement())
+  loan_id                Int
+  start_day_overdue      Int
+  end_day_overdue        Int?  // Nullable for the final infinite tier
+  penalty_amount_per_day Float
+  
+  loan Loan @relation(fields: [loan_id], references: [id], onDelete: Cascade)
+}
+
+model DailyLedgerAccrual {
+  id                         Int      @id @default(autoincrement())
+  loan_id                    Int
+  date                       DateTime
+  interest_accrued           Float
+  penalty_accrued            Float
+  active_tier_label          String
+  total_outstanding_snapshot Float
+  
+  loan Loan @relation(fields: [loan_id], references: [id], onDelete: Cascade)
+}
+
+model RecoveryLedgerTransaction {
+  id                     Int      @id @default(autoincrement())
+  loan_id                Int
+  date                   DateTime
+  total_amount_received  Float
+  allocated_to_principal Float
+  allocated_to_interest  Float
+  allocated_to_penalty   Float
+  
+  loan Loan @relation(fields: [loan_id], references: [id], onDelete: Cascade)
+}
+
+model SystemConfig {
+  id          String   @id @default("default")
+  system_date DateTime
+}
