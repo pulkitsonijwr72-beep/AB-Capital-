@@ -2,14 +2,18 @@ import express from 'express';
 import cors from 'cors';
 import bodyParser from 'body-parser';
 import dotenv from 'dotenv';
+import { PrismaClient } from '@prisma/client';
 
 import { getFunds, createFund } from './controllers/fundController.js';
 import { getBorrowers, getBorrowerById, createBorrower } from './controllers/borrowerController.js';
 import { getLoans, getLoanById, createLoan } from './controllers/loanController.js';
 import { getTransactions, createTransaction } from './controllers/transactionController.js';
-import { getSystemState, updateSystemDate, getDashboardStats } from './controllers/systemController.js';
+import { getSystemState, updateSystemDate, syncSystemDate, getDashboardStats } from './controllers/systemController.js';
+import { catchUpAccruals } from './services/accrualService.js';
 
 dotenv.config();
+
+const prisma = new PrismaClient();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -44,6 +48,7 @@ app.post('/api/transactions', createTransaction);
 // 5. System Config & Time Simulation
 app.get('/api/system', getSystemState);
 app.post('/api/system', updateSystemDate);
+app.post('/api/system/sync', syncSystemDate);
 app.get('/api/system/dashboard', getDashboardStats);
 
 // Health check endpoint
@@ -57,10 +62,36 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: 'Internal Server Error' });
 });
 
+function scheduleMidnightAccruals() {
+  const now = new Date();
+  const nextMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 1, 0); // 12:00:01 AM local time
+  const msToMidnight = nextMidnight.getTime() - now.getTime();
+
+  console.log(`[Auto Scheduler] Next midnight accrual check scheduled in ${Math.round(msToMidnight / 1000 / 60)} minutes (at ${nextMidnight.toString()})`);
+
+  setTimeout(async () => {
+    try {
+      const config = await prisma.systemConfig.findFirst();
+      if (config && !config.is_manual_override) {
+        const today = new Date();
+        const todayMidnight = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 0, 0, 0, 0);
+        console.log(`[Auto Scheduler] Midnight transition detected! Running auto-accrual catchup to ${todayMidnight.toDateString()}`);
+        await catchUpAccruals(todayMidnight.toISOString());
+      }
+    } catch (e) {
+      console.error('[Auto Scheduler] Error during scheduled midnight accrual:', e);
+    } finally {
+      scheduleMidnightAccruals();
+    }
+  }, msToMidnight);
+}
+
 // Boot listener
 app.listen(PORT, () => {
   console.log(`=========================================`);
   console.log(` AB CAPITAL LEDGER ENGINE STARTED`);
   console.log(` Running on port: http://localhost:${PORT}`);
   console.log(`=========================================`);
+  
+  scheduleMidnightAccruals();
 });

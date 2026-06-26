@@ -8,63 +8,46 @@ import {
   Play, 
   ChevronRight,
   ShieldCheck,
-  Zap
+  Zap,
+  RefreshCw
 } from 'lucide-react';
 import { API_BASE } from './config';
 import LiquidityDashboard from './components/LiquidityDashboard';
 import BorrowerRegistry from './components/BorrowerRegistry';
 import FundRegistry from './components/FundRegistry';
+import { useClock } from './context/ClockContext';
 
 export default function App() {
   const [currentView, setCurrentView] = useState('dashboard');
-  const [systemState, setSystemState] = useState(null);
-  const [selectedDate, setSelectedDate] = useState('');
-  const [stats, setStats] = useState(null);
   const [funds, setFunds] = useState([]);
-  const [refreshTrigger, setRefreshTrigger] = useState(0);
 
-  // Time advancement controller state
+  // Consume from ClockContext
+  const {
+    systemState,
+    selectedDate,
+    setSelectedDate,
+    stats,
+    isAdvancingTime,
+    timeSimulationLogs,
+    setTimeSimulationLogs,
+    advanceSystemClock,
+    resetToAutoSync,
+    triggerRefresh
+  } = useClock();
+
+  // Local state for time input field
   const [targetSystemDate, setTargetSystemDate] = useState('');
-  const [timeSimulationLogs, setTimeSimulationLogs] = useState(null);
-  const [isAdvancingTime, setIsAdvancingTime] = useState(false);
 
   useEffect(() => {
-    fetchSystemState();
     fetchFunds();
-  }, [refreshTrigger]);
+  }, [systemState]);
 
+  // Initialize input field when systemState loads
   useEffect(() => {
-    if (selectedDate) {
-      fetchDashboardStats(selectedDate);
+    if (systemState?.system_date) {
+      setTargetSystemDate(new Date(systemState.system_date).toISOString().split('T')[0]);
     }
-  }, [selectedDate, refreshTrigger]);
-
-  const fetchSystemState = async () => {
-    try {
-      const res = await fetch(`${API_BASE}/system`);
-      const data = await res.json();
-      setSystemState(data);
-      
-      // Initialize selectedDate to current virtual system date if not set
-      const systemDateStr = new Date(data.system_date).toISOString().split('T')[0];
-      if (!selectedDate) {
-        setSelectedDate(systemDateStr);
-      }
-      setTargetSystemDate(systemDateStr);
-    } catch (e) {
-      console.error('Error fetching system state:', e);
-    }
-  };
-
-  const fetchDashboardStats = async (dateStr) => {
-    try {
-      const res = await fetch(`${API_BASE}/system/dashboard?date=${dateStr}`);
-      const data = await res.json();
-      setStats(data);
-    } catch (e) {
-      console.error('Error fetching stats:', e);
-    }
-  };
+  }, [systemState]);
 
   const fetchFunds = async () => {
     try {
@@ -79,34 +62,22 @@ export default function App() {
   const handleAdvanceSystemClock = async (e) => {
     e.preventDefault();
     if (!targetSystemDate) return;
-    
-    setIsAdvancingTime(true);
-    setTimeSimulationLogs(null);
-    
-    try {
-      const res = await fetch(`${API_BASE}/system`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ system_date: targetSystemDate })
-      });
-      const data = await res.json();
-      if (res.ok) {
-        setRefreshTrigger(prev => prev + 1);
-        setSelectedDate(targetSystemDate); // automatically focus statistics on advanced date
-        setTimeSimulationLogs(data);
-      } else {
-        alert(data.error || 'Failed to advance ledger clock.');
-      }
-    } catch (e) {
-      console.error(e);
-      alert('Error connecting to Server.');
-    } finally {
-      setIsAdvancingTime(false);
+    const res = await advanceSystemClock(targetSystemDate);
+    if (res && !res.success) {
+      alert(res.error);
+    }
+  };
+
+  const handleResetToAutoSync = async () => {
+    const res = await resetToAutoSync();
+    if (res && !res.success) {
+      alert(res.error);
     }
   };
 
   const triggerGlobalRefresh = () => {
-    setRefreshTrigger(prev => prev + 1);
+    triggerRefresh();
+    fetchFunds();
   };
 
   return (
@@ -167,9 +138,20 @@ export default function App() {
 
         {/* TIME ADVANCEMENT CONTROLLER WIDGET */}
         <div className="p-4 border-t border-brand-border/60 bg-brand-dark/20 space-y-4">
-          <div className="flex items-center gap-2">
-            <Clock className="text-brand-accent h-4 w-4" />
-            <h3 className="text-xs font-bold uppercase tracking-wider text-brand-text">Ledger Clock System</h3>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-1.5">
+              <Clock className="text-brand-accent h-4 w-4" />
+              <h3 className="text-xs font-bold uppercase tracking-wider text-brand-text">Ledger Clock</h3>
+            </div>
+            {systemState && (
+              <span className={`text-[8px] font-extrabold px-1.5 py-0.5 rounded border uppercase tracking-wider ${
+                systemState.is_manual_override 
+                  ? 'bg-brand-amber/10 text-brand-amber border-brand-amber/30'
+                  : 'bg-brand-emerald/10 text-brand-emerald border-brand-emerald/30'
+              }`}>
+                {systemState.is_manual_override ? 'Manual' : 'Auto Sync'}
+              </span>
+            )}
           </div>
           
           <div className="bg-brand-card border border-brand-border/70 p-3.5 rounded-lg space-y-3">
@@ -180,6 +162,16 @@ export default function App() {
                 : 'Connecting...'
               }
             </div>
+
+            {systemState?.is_manual_override && (
+              <button 
+                onClick={handleResetToAutoSync}
+                disabled={isAdvancingTime}
+                className="w-full text-[9px] uppercase font-bold bg-brand-emerald/15 hover:bg-brand-emerald/25 text-brand-emerald border border-brand-emerald/30 py-1.5 rounded-md flex items-center justify-center gap-1 transition-colors shadow-md disabled:opacity-50"
+              >
+                <RefreshCw className="h-3 w-3" /> Sync to Real Calendar
+              </button>
+            )}
 
             <form onSubmit={handleAdvanceSystemClock} className="space-y-2 pt-2 border-t border-brand-border/40">
               <label className="text-[9px] text-brand-muted uppercase block">Fast-Forward To Date</label>

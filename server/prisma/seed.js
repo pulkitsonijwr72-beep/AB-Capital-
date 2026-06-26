@@ -73,7 +73,8 @@ async function main() {
   await prisma.systemConfig.create({
     data: {
       id: 'default',
-      system_date: new Date('2026-06-01T00:00:00.000Z')
+      system_date: new Date('2026-06-01T00:00:00.000Z'),
+      is_manual_override: false
     }
   });
 
@@ -227,11 +228,13 @@ async function main() {
     }
   });
 
-  // 9. Catch up accruals from June 18 to June 21, 2026 (today)
-  console.log('Catching up accruals to 2026-06-21...');
-  await catchUpAccruals('2026-06-21T00:00:00.000Z');
+  // 9. Catch up accruals from June 18 to today's real-world calendar date
+  const now = new Date();
+  const todayLocalMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+  console.log(`Catching up accruals to today's real-world date: ${todayLocalMidnight.toISOString()}...`);
+  await catchUpAccruals(todayLocalMidnight.toISOString());
 
-  console.log('Seeding complete! Database ready at system date 2026-06-21.');
+  console.log(`Seeding complete! Database ready at system date ${todayLocalMidnight.toDateString()}.`);
 }
 
 main()

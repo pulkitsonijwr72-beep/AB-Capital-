@@ -8,11 +8,28 @@ const prisma = new PrismaClient();
  */
 export async function getSystemState(req, res) {
   try {
+    const now = new Date();
+    const realDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+
     let config = await prisma.systemConfig.findFirst();
     if (!config) {
       config = await prisma.systemConfig.create({
-        data: { system_date: new Date('2026-06-01T00:00:00.000Z') }
+        data: { 
+          system_date: realDate,
+          is_manual_override: false
+        }
       });
+    } else if (!config.is_manual_override) {
+      // If auto-sync is enabled, compare the stored date to the real-world date
+      const configDate = new Date(config.system_date);
+      const configDateMidnight = new Date(configDate.getFullYear(), configDate.getMonth(), configDate.getDate(), 0, 0, 0, 0);
+      
+      if (configDateMidnight < realDate) {
+        // Automatically catch up accruals up to the real-world date
+        console.log(`[Auto Clock] Advancing virtual date from ${configDateMidnight.toDateString()} to real-world date ${realDate.toDateString()}`);
+        await catchUpAccruals(realDate.toISOString());
+        config = await prisma.systemConfig.findFirst();
+      }
     }
     return res.json(config);
   } catch (error) {
@@ -23,6 +40,7 @@ export async function getSystemState(req, res) {
 
 /**
  * Updates the virtual system date and runs catch-up daily accruals for all intervening days.
+ * Sets is_manual_override to true.
  */
 export async function updateSystemDate(req, res) {
   const { system_date } = req.body;
@@ -32,17 +50,97 @@ export async function updateSystemDate(req, res) {
   }
 
   try {
-    const logs = await catchUpAccruals(system_date);
+    const targetDate = new Date(system_date);
+    const targetStart = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate(), 0, 0, 0, 0);
+
+    let config = await prisma.systemConfig.findFirst();
+    if (!config) {
+      config = await prisma.systemConfig.create({
+        data: { 
+          system_date: targetStart,
+          is_manual_override: true
+        }
+      });
+    } else {
+      await prisma.systemConfig.update({
+        where: { id: config.id },
+        data: { is_manual_override: true }
+      });
+    }
+
+    const logs = await catchUpAccruals(targetStart.toISOString());
     const updatedConfig = await prisma.systemConfig.findFirst();
 
     return res.json({
       message: 'System date updated successfully. Catch-up accruals completed.',
       system_date: updatedConfig.system_date,
+      is_manual_override: updatedConfig.is_manual_override,
       accruals_logged_count: logs.length,
       accruals: logs
     });
   } catch (error) {
     console.error('Error updating system date:', error);
+    return res.status(500).json({ error: error.message || 'Internal Server Error' });
+  }
+}
+
+/**
+ * Disables manual override, resets the system date to today's real date, and catches up.
+ */
+export async function syncSystemDate(req, res) {
+  try {
+    const now = new Date();
+    const realDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+
+    let config = await prisma.systemConfig.findFirst();
+    if (!config) {
+      config = await prisma.systemConfig.create({
+        data: { 
+          system_date: realDate,
+          is_manual_override: false
+        }
+      });
+      return res.json({
+        message: 'System date synchronized successfully.',
+        system_date: config.system_date,
+        is_manual_override: config.is_manual_override,
+        accruals_logged_count: 0,
+        accruals: []
+      });
+    }
+
+    await prisma.systemConfig.update({
+      where: { id: config.id },
+      data: { is_manual_override: false }
+    });
+
+    const configDate = new Date(config.system_date);
+    const configDateMidnight = new Date(configDate.getFullYear(), configDate.getMonth(), configDate.getDate(), 0, 0, 0, 0);
+
+    let logs = [];
+    if (configDateMidnight < realDate) {
+      console.log(`[Auto Clock] Syncing and catching up accruals to real-world date ${realDate.toDateString()}`);
+      logs = await catchUpAccruals(realDate.toISOString());
+    } else if (configDateMidnight > realDate) {
+      // If future override date, reset config system_date to today
+      console.log(`[Auto Clock] Syncing back to today's real date (reverting from future virtual date: ${configDateMidnight.toDateString()})`);
+      await prisma.systemConfig.update({
+        where: { id: config.id },
+        data: { system_date: realDate }
+      });
+    }
+
+    const updatedConfig = await prisma.systemConfig.findFirst();
+
+    return res.json({
+      message: 'System date synchronized successfully to real-world calendar.',
+      system_date: updatedConfig.system_date,
+      is_manual_override: updatedConfig.is_manual_override,
+      accruals_logged_count: logs.length,
+      accruals: logs
+    });
+  } catch (error) {
+    console.error('Error synchronizing system date:', error);
     return res.status(500).json({ error: error.message || 'Internal Server Error' });
   }
 }

@@ -80,6 +80,7 @@ model RecoveryLedgerTransaction {
 }
 
 model SystemConfig {
-  id          String   @id @default("default")
-  system_date DateTime
+  id                 String   @id @default("default")
+  system_date        DateTime
+  is_manual_override Boolean  @default(false)
 }
