@@ -45,7 +45,13 @@ app.get('/api/loans/:id', getLoanById);
 app.get('/api/transactions', getTransactions);
 app.post('/api/transactions', createTransaction);
 
-// 5. System Config & Time Simulation
+// 5. System Config, Clock & Time Simulation
+app.get('/api/clock/state', getSystemState);
+app.post('/api/clock/advance', updateSystemDate);
+app.post('/api/clock/sync', syncSystemDate);
+app.get('/api/dashboard/metrics', getDashboardStats);
+
+// Legacy aliases for compatibility
 app.get('/api/system', getSystemState);
 app.post('/api/system', updateSystemDate);
 app.post('/api/system/sync', syncSystemDate);

@@ -15,7 +15,7 @@ export function ClockProvider({ children }) {
   // Fetch virtual system date state
   const fetchSystemState = useCallback(async () => {
     try {
-      const res = await fetch(`${API_BASE}/system`);
+      const res = await fetch(`${API_BASE}/clock/state`);
       if (!res.ok) throw new Error('Failed to fetch system state');
       const data = await res.json();
       
@@ -45,7 +45,7 @@ export function ClockProvider({ children }) {
     if (!dateStr) return;
     setIsLoadingStats(true);
     try {
-      const res = await fetch(`${API_BASE}/system/dashboard?date=${dateStr}`);
+      const res = await fetch(`${API_BASE}/dashboard/metrics?date=${dateStr}`);
       if (!res.ok) throw new Error('Failed to fetch dashboard stats');
       const data = await res.json();
       setStats(data);
@@ -67,7 +67,7 @@ export function ClockProvider({ children }) {
     setIsAdvancingTime(true);
     setTimeSimulationLogs(null);
     try {
-      const res = await fetch(`${API_BASE}/system`, {
+      const res = await fetch(`${API_BASE}/clock/advance`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ system_date: targetDate })
@@ -98,7 +98,7 @@ export function ClockProvider({ children }) {
     setIsAdvancingTime(true);
     setTimeSimulationLogs(null);
     try {
-      const res = await fetch(`${API_BASE}/system/sync`, {
+      const res = await fetch(`${API_BASE}/clock/sync`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' }
       });

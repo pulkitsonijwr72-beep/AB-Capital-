@@ -13,7 +13,7 @@ async function runTests() {
   try {
     // Test 1: Get Current System State
     console.log('\n[TEST 1] Fetching current system state...');
-    const stateRes = await fetch('http://localhost:5001/api/system');
+    const stateRes = await fetch('http://localhost:5001/api/clock/state');
     if (!stateRes.ok) throw new Error('Failed to fetch system state');
     const state = await stateRes.json();
     console.log('System State:', JSON.stringify(state, null, 2));
@@ -38,7 +38,7 @@ async function runTests() {
     const futureDateStr = localDateStr(futureDate);
     
     console.log(`\n[TEST 2] Setting manual fast-forward override to: ${futureDateStr}...`);
-    const overrideRes = await fetch('http://localhost:5001/api/system', {
+    const overrideRes = await fetch('http://localhost:5001/api/clock/advance', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ system_date: futureDateStr })
@@ -59,7 +59,7 @@ async function runTests() {
 
     // Test 3: Reset back to Auto-Sync
     console.log('\n[TEST 3] Resetting back to Automatic Calendar Sync...');
-    const syncRes = await fetch('http://localhost:5001/api/system/sync', {
+    const syncRes = await fetch('http://localhost:5001/api/clock/sync', {
       method: 'POST'
     });
     

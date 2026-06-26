@@ -152,13 +152,13 @@ export async function getDashboardStats(req, res) {
   const { date } = req.query;
 
   try {
-    // Determine the query date (fallback to current system date)
+    // Determine the query date (fallback to current real-world calendar date)
     let queryDate;
     if (date) {
       queryDate = new Date(date);
     } else {
-      const config = await prisma.systemConfig.findFirst();
-      queryDate = config ? new Date(config.system_date) : new Date();
+      const now = new Date();
+      queryDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
     }
 
     const startOfDay = new Date(queryDate.getFullYear(), queryDate.getMonth(), queryDate.getDate(), 0, 0, 0, 0);
@@ -223,12 +223,58 @@ export async function getDashboardStats(req, res) {
     const interestAccruedToday = accrualsToday.reduce((acc, a) => acc + a.interest_accrued, 0.0);
     const penaltyAccruedToday = accrualsToday.reduce((acc, a) => acc + a.penalty_accrued, 0.0);
 
-    // 4. Cumulative overall numbers for summary context
-    const allLoans = await prisma.loan.findMany();
-    const activeLoans = allLoans.filter(l => l.status !== 'Settled');
-    const totalOutstandingPrincipal = activeLoans.reduce((acc, l) => acc + l.remaining_principal, 0.0);
-    const totalOutstandingInterest = activeLoans.reduce((acc, l) => acc + l.remaining_interest, 0.0);
-    const totalOutstandingPenalty = activeLoans.reduce((acc, l) => acc + l.remaining_penalty, 0.0);
+    // 4. Cumulative overall numbers for summary context as of queryDate
+    const allLoans = await prisma.loan.findMany({
+      where: {
+        issue_date: {
+          lte: endOfDay
+        }
+      },
+      include: {
+        daily_ledger_accruals: {
+          where: {
+            date: {
+              lte: endOfDay
+            }
+          }
+        },
+        recovery_transactions: {
+          where: {
+            date: {
+              lte: endOfDay
+            }
+          }
+        }
+      }
+    });
+
+    let totalOutstandingPrincipal = 0.0;
+    let totalOutstandingInterest = 0.0;
+    let totalOutstandingPenalty = 0.0;
+    let activeLoansCount = 0;
+
+    for (const loan of allLoans) {
+      const totalPrincipalPaid = loan.recovery_transactions.reduce((sum, tx) => sum + tx.allocated_to_principal, 0.0);
+      const totalInterestPaid = loan.recovery_transactions.reduce((sum, tx) => sum + tx.allocated_to_interest, 0.0);
+      const totalPenaltyPaid = loan.recovery_transactions.reduce((sum, tx) => sum + tx.allocated_to_penalty, 0.0);
+
+      const totalInterestAccrued = loan.daily_ledger_accruals.reduce((sum, acc) => sum + acc.interest_accrued, 0.0);
+      const totalPenaltyAccrued = loan.daily_ledger_accruals.reduce((sum, acc) => sum + acc.penalty_accrued, 0.0);
+
+      const histPrincipal = Math.max(0.0, Math.round((loan.principal_disbursed - totalPrincipalPaid) * 100) / 100);
+      const histInterest = Math.max(0.0, Math.round((totalInterestAccrued - totalInterestPaid) * 100) / 100);
+      const histPenalty = Math.max(0.0, Math.round((totalPenaltyAccrued - totalPenaltyPaid) * 100) / 100);
+
+      const histStatus = histPrincipal <= 0 ? 'Settled' : (endOfDay > new Date(loan.maturity_due_date) ? 'Overdue' : 'Active');
+
+      if (histStatus !== 'Settled') {
+        totalOutstandingPrincipal += histPrincipal;
+        totalOutstandingInterest += histInterest;
+        totalOutstandingPenalty += histPenalty;
+        activeLoansCount++;
+      }
+    }
+
     const totalAum = totalOutstandingPrincipal + totalOutstandingInterest + totalOutstandingPenalty;
 
     return res.json({
@@ -275,7 +321,7 @@ export async function getDashboardStats(req, res) {
         outstanding_interest: Math.round(totalOutstandingInterest * 100) / 100,
         outstanding_penalty: Math.round(totalOutstandingPenalty * 100) / 100,
         total_aum: Math.round(totalAum * 100) / 100,
-        active_count: activeLoans.length
+        active_count: activeLoansCount
       }
     });
   } catch (error) {
