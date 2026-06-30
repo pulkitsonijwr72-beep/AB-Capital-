@@ -12,7 +12,9 @@ import {
   TrendingUp,
   Percent,
   CheckCircle,
-  Plus
+  Plus,
+  Trash2,
+  History
 } from 'lucide-react';
 import { API_BASE } from '../config';
 
@@ -42,6 +44,7 @@ export default function BorrowerRegistry({ systemState, onActionTriggered }) {
     principal_disbursed: '',
     interest_rate_percentage: '',
     interest_type: 'Simple',
+    interest_period: 'Yearly',
     issue_date: '',
     maturity_due_date: ''
   });
@@ -216,6 +219,54 @@ export default function BorrowerRegistry({ systemState, onActionTriggered }) {
     setTimeout(() => setMessage({ text: '', type: '' }), 6000);
   };
 
+  const handleDeleteBorrower = async (e, id, name) => {
+    e.stopPropagation();
+    if (!confirm(`Are you sure you want to move borrower "${name}" to the Trash Bin?`)) {
+      return;
+    }
+    try {
+      const res = await fetch(`${API_BASE}/borrowers/${id}`, {
+        method: 'DELETE'
+      });
+      const data = await res.json();
+      if (res.ok) {
+        triggerMessage(data.message || 'Borrower moved to trash.', 'success');
+        fetchBorrowers();
+        if (selectedId === id) {
+          setSelectedId(null);
+          setDossier(null);
+        }
+        onActionTriggered();
+      } else {
+        triggerMessage(data.error || 'Failed to delete borrower.', 'error');
+      }
+    } catch (e) {
+      triggerMessage('Server connection error.', 'error');
+    }
+  };
+
+  const handleDeleteLoan = async (loanId) => {
+    if (!confirm(`Are you sure you want to move Loan L-${loanId} to the Trash Bin?`)) {
+      return;
+    }
+    try {
+      const res = await fetch(`${API_BASE}/loans/${loanId}`, {
+        method: 'DELETE'
+      });
+      const data = await res.json();
+      if (res.ok) {
+        triggerMessage(data.message || 'Loan moved to trash.', 'success');
+        fetchDossier(selectedId);
+        fetchBorrowers();
+        onActionTriggered();
+      } else {
+        triggerMessage(data.error || 'Failed to delete loan.', 'error');
+      }
+    } catch (e) {
+      triggerMessage('Server connection error.', 'error');
+    }
+  };
+
   const filteredBorrowers = borrowers.filter(b => 
     b.full_name.toLowerCase().includes(searchQuery.toLowerCase()) || 
     b.email.toLowerCase().includes(searchQuery.toLowerCase())
@@ -312,10 +363,22 @@ export default function BorrowerRegistry({ systemState, onActionTriggered }) {
                 className={`p-3 rounded-lg border cursor-pointer transition-all ${selectedId === b.id ? 'bg-brand-slate border-brand-accent shadow-md' : 'bg-brand-dark/20 border-brand-border/40 hover:bg-brand-slate/40'}`}
               >
                 <div className="flex justify-between items-start">
-                  <h4 className="text-xs font-semibold text-brand-text">{b.full_name}</h4>
-                  <span className={`text-[9px] px-1.5 py-0.5 rounded font-bold font-mono ${b.active_loans_count > 0 ? 'bg-brand-crimson/15 text-brand-crimson border border-brand-crimson/20' : 'bg-brand-emerald/15 text-brand-emerald border border-brand-emerald/20'}`}>
-                    {b.active_loans_count} Active
-                  </span>
+                  <div>
+                    <h4 className="text-xs font-semibold text-brand-text">{b.full_name}</h4>
+                    <span className="text-[9px] text-brand-muted block mt-0.5">{b.email}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className={`text-[9px] px-1.5 py-0.5 rounded font-bold font-mono ${b.active_loans_count > 0 ? 'bg-brand-crimson/15 text-brand-crimson border border-brand-crimson/20' : 'bg-brand-emerald/15 text-brand-emerald border border-brand-emerald/20'}`}>
+                      {b.active_loans_count} Active
+                    </span>
+                    <button
+                      onClick={(e) => handleDeleteBorrower(e, b.id, b.full_name)}
+                      className="p-1 rounded bg-brand-dark hover:bg-brand-crimson/15 border border-brand-border/60 hover:border-brand-crimson/40 text-brand-muted hover:text-brand-crimson transition-colors"
+                      title="Move to Trash Bin"
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </button>
+                  </div>
                 </div>
                 <div className="flex justify-between items-center mt-2.5 text-[10px] text-brand-muted font-mono">
                   <span>Out: {formatCurrency(b.total_outstanding)}</span>
@@ -347,6 +410,24 @@ export default function BorrowerRegistry({ systemState, onActionTriggered }) {
                 <span className="text-[10px] bg-brand-accent/25 text-brand-text border border-brand-accent/40 px-2 py-0.5 rounded font-bold font-mono">CLIENT DOSSIER #C-{dossier.id}</span>
                 <h2 className="text-xl font-extrabold text-brand-text mt-1.5">{dossier.full_name}</h2>
                 <p className="text-xs text-brand-muted mt-1">{dossier.email} &bull; {dossier.phone}</p>
+                {Array.isArray(dossier.edit_log) && dossier.edit_log.length > 0 && (
+                  <details className="mt-3 text-[10.5px] text-brand-muted cursor-pointer">
+                    <summary className="hover:text-brand-text transition-colors font-semibold select-none flex items-center gap-1">
+                      <History className="h-3.5 w-3.5 text-brand-accent inline" /> View Dossier Edit History ({dossier.edit_log.length})
+                    </summary>
+                    <div className="mt-2 bg-brand-dark/30 border border-brand-border/40 p-2.5 rounded-lg space-y-1.5 font-sans">
+                      {dossier.edit_log.map((log, idx) => (
+                        <div key={idx} className="flex items-start gap-1">
+                          <span className="text-brand-accent font-semibold">[{log.action}]</span>
+                          <span>{log.detail}</span>
+                          <span className="ml-auto text-[9px] font-mono text-brand-muted/70">
+                            {new Date(log.timestamp).toLocaleDateString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </details>
+                )}
               </div>
               <div className="flex gap-2">
                 <button 
@@ -480,6 +561,18 @@ export default function BorrowerRegistry({ systemState, onActionTriggered }) {
                     </select>
                   </div>
                   <div>
+                    <label className="text-[10px] text-brand-muted uppercase block">Time Period (Interest & Penalty Accrual)</label>
+                    <select 
+                      value={newLoan.interest_period}
+                      onChange={e => setNewLoan({...newLoan, interest_period: e.target.value})}
+                      className="w-full bg-brand-card border border-brand-border text-xs px-2.5 py-1.5 rounded text-brand-text focus:outline-none focus:border-brand-accent mt-1"
+                    >
+                      <option value="Weekly">Weekly</option>
+                      <option value="Monthly">Monthly</option>
+                      <option value="Yearly">Yearly</option>
+                    </select>
+                  </div>
+                  <div>
                     <label className="text-[10px] text-brand-muted uppercase block">Issue Date</label>
                     <input 
                       type="date" 
@@ -567,9 +660,21 @@ export default function BorrowerRegistry({ systemState, onActionTriggered }) {
                             L-{loan.id} &bull; {loan.status.toUpperCase()}
                           </span>
                           <span className="text-xs text-brand-text font-medium">{loan.fund.name}</span>
+                          <span className="text-[9px] bg-brand-dark px-1.5 py-0.5 rounded font-mono text-brand-muted uppercase">
+                            {loan.interest_period}
+                          </span>
                         </div>
-                        <div className="text-xs font-mono font-bold text-brand-text">
-                          Total Bal: {formatCurrency(outBal)}
+                        <div className="flex items-center gap-3">
+                          <div className="text-xs font-mono font-bold text-brand-text">
+                            Total Bal: {formatCurrency(outBal)}
+                          </div>
+                          <button
+                            onClick={() => handleDeleteLoan(loan.id)}
+                            className="p-1 rounded bg-brand-dark hover:bg-brand-crimson/15 border border-brand-border/60 hover:border-brand-crimson/40 text-brand-muted hover:text-brand-crimson transition-colors"
+                            title="Move Loan to Trash Bin"
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </button>
                         </div>
                       </div>
 
@@ -673,6 +778,26 @@ export default function BorrowerRegistry({ systemState, onActionTriggered }) {
                           })()}
                         </div>
                       </div>
+
+                      {/* Loan edit log Audit history */}
+                      {Array.isArray(loan.edit_log) && loan.edit_log.length > 0 && (
+                        <div className="border-t border-brand-border/40 p-4 bg-brand-dark/10">
+                          <h4 className="text-[10px] font-bold uppercase tracking-wider text-brand-muted mb-2 flex items-center gap-1">
+                            <History className="h-3 w-3 text-brand-accent" /> Audit Trail (Max 5 Edit Entries)
+                          </h4>
+                          <div className="space-y-1.5 text-[10.5px]">
+                            {loan.edit_log.map((log, idx) => (
+                              <div key={idx} className="text-brand-muted font-sans flex items-start gap-1">
+                                <span className="text-brand-accent font-semibold">[{log.action}]</span>
+                                <span>{log.detail}</span>
+                                <span className="ml-auto text-[9px] font-mono text-brand-muted/70">
+                                  {new Date(log.timestamp).toLocaleDateString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   );
                 })

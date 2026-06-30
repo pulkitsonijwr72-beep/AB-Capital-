@@ -9,12 +9,16 @@ import {
   ChevronRight,
   ShieldCheck,
   Zap,
-  RefreshCw
+  RefreshCw,
+  Trash2,
+  Activity
 } from 'lucide-react';
 import { API_BASE } from './config';
 import LiquidityDashboard from './components/LiquidityDashboard';
 import BorrowerRegistry from './components/BorrowerRegistry';
 import FundRegistry from './components/FundRegistry';
+import TrashBin from './components/TrashBin';
+import PaymentStatus from './components/PaymentStatus';
 import { useClock } from './context/ClockContext';
 
 export default function App() {
@@ -124,12 +128,34 @@ export default function App() {
             </button>
 
             <button
+              onClick={() => { setCurrentView('payment-status'); setTimeSimulationLogs(null); }}
+              className={`w-full flex items-center justify-between px-4 py-3 rounded-lg text-xs font-semibold transition-premium ${currentView === 'payment-status' ? 'bg-brand-card border border-brand-border text-brand-text shadow-lg' : 'text-brand-muted hover:text-brand-text hover:bg-brand-card/35'}`}
+            >
+              <div className="flex items-center gap-2.5">
+                <Activity className={`h-4 w-4 ${currentView === 'payment-status' ? 'text-brand-accent' : ''}`} />
+                <span>Repayment Health</span>
+              </div>
+              <ChevronRight className="h-3 w-3 opacity-60" />
+            </button>
+
+            <button
               onClick={() => { setCurrentView('funds'); setTimeSimulationLogs(null); }}
               className={`w-full flex items-center justify-between px-4 py-3 rounded-lg text-xs font-semibold transition-premium ${currentView === 'funds' ? 'bg-brand-card border border-brand-border text-brand-text shadow-lg' : 'text-brand-muted hover:text-brand-text hover:bg-brand-card/35'}`}
             >
               <div className="flex items-center gap-2.5">
                 <Landmark className={`h-4 w-4 ${currentView === 'funds' ? 'text-brand-accent' : ''}`} />
                 <span>Capital Source Pools</span>
+              </div>
+              <ChevronRight className="h-3 w-3 opacity-60" />
+            </button>
+
+            <button
+              onClick={() => { setCurrentView('trash'); setTimeSimulationLogs(null); }}
+              className={`w-full flex items-center justify-between px-4 py-3 rounded-lg text-xs font-semibold transition-premium ${currentView === 'trash' ? 'bg-brand-card border border-brand-border text-brand-text shadow-lg' : 'text-brand-muted hover:text-brand-text hover:bg-brand-card/35'}`}
+            >
+              <div className="flex items-center gap-2.5">
+                <Trash2 className={`h-4 w-4 ${currentView === 'trash' ? 'text-brand-accent' : ''}`} />
+                <span>Trash Bin</span>
               </div>
               <ChevronRight className="h-3 w-3 opacity-60" />
             </button>
@@ -204,7 +230,9 @@ export default function App() {
             <h2 className="text-base font-extrabold text-brand-text tracking-wide uppercase">
               {currentView === 'dashboard' && 'Liquidity Flow & Accruals'}
               {currentView === 'borrowers' && 'Borrower Registry & Recipient Dossier'}
+              {currentView === 'payment-status' && 'Borrower running payment status'}
               {currentView === 'funds' && 'Originating Capital Reserve Pools'}
+              {currentView === 'trash' && 'Soft-Deleted Trash Bin'}
             </h2>
             <span className="text-[10px] text-brand-muted font-mono uppercase block mt-0.5">Private Bookkeeping Console</span>
           </div>
@@ -215,7 +243,7 @@ export default function App() {
               <Calendar className="h-3.5 w-3.5 text-brand-accent" /> Ledger Filter Date:
             </span>
             <input 
-              type="date"
+              type="date" 
               value={selectedDate}
               onChange={e => setSelectedDate(e.target.value)}
               className="bg-brand-dark border border-brand-border text-xs px-3 py-1.5 rounded-lg text-brand-text font-mono focus:outline-none focus:border-brand-accent shadow-sm"
@@ -270,9 +298,19 @@ export default function App() {
             />
           )}
 
+          {currentView === 'payment-status' && (
+            <PaymentStatus />
+          )}
+
           {currentView === 'funds' && (
             <FundRegistry 
               funds={funds}
+              onActionTriggered={triggerGlobalRefresh}
+            />
+          )}
+
+          {currentView === 'trash' && (
+            <TrashBin 
               onActionTriggered={triggerGlobalRefresh}
             />
           )}
