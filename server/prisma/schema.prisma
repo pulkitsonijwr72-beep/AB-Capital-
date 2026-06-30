@@ -8,19 +8,22 @@ generator client {
 }
 
 model Fund {
-  id                Int      @id @default(autoincrement())
+  id                Int       @id @default(autoincrement())
   name              String
-  total_capital     Float    // Total capital capacity
-  allocated_capital Float    // Capital currently deployed in active loans
+  total_capital     Float     // Total capital capacity
+  allocated_capital Float     // Capital currently deployed in active loans
   loans             Loan[]
 }
 
 model Borrower {
-  id                        Int      @id @default(autoincrement())
+  id                        Int       @id @default(autoincrement())
   full_name                 String
   phone                     String
   email                     String
   internal_structural_notes String
+  is_deleted                Boolean   @default(false)
+  deleted_at                DateTime?
+  edit_log                  String    @default("[]") // JSON array, capped at 5 audit entries
   loans                     Loan[]
 }
 
@@ -30,14 +33,18 @@ model Loan {
   fund_id                  Int
   principal_disbursed      Float
   remaining_principal      Float                        // Outstanding principal
-  remaining_interest       Float                        @default(0.0) // Unpaid interest
-  remaining_penalty        Float                        @default(0.0) // Unpaid penalty
+  remaining_interest       Float                        @default(0.0)
+  remaining_penalty        Float                        @default(0.0)
   interest_rate_percentage Float
-  interest_type            String                       // "Flat" or "Simple"
+  interest_type            String                       // "Flat" | "Simple"
+  interest_period          String                       @default("Yearly") // "Weekly" | "Monthly" | "Yearly"
   issue_date               DateTime
   maturity_due_date        DateTime
-  status                   String                       // "Active", "Overdue", "Settled"
-  
+  status                   String                       // "Active" | "Overdue" | "Settled"
+  is_deleted               Boolean                      @default(false)
+  deleted_at               DateTime?
+  edit_log                 String                       @default("[]") // JSON array, capped at 5 audit entries
+
   borrower                 Borrower                     @relation(fields: [borrower_id], references: [id], onDelete: Cascade)
   fund                     Fund                         @relation(fields: [fund_id], references: [id], onDelete: Cascade)
   penalty_tier_configs     PenaltyTierConfig[]
@@ -51,7 +58,7 @@ model PenaltyTierConfig {
   start_day_overdue      Int
   end_day_overdue        Int?  // Nullable for the final infinite tier
   penalty_amount_per_day Float
-  
+
   loan Loan @relation(fields: [loan_id], references: [id], onDelete: Cascade)
 }
 
@@ -63,19 +70,21 @@ model DailyLedgerAccrual {
   penalty_accrued            Float
   active_tier_label          String
   total_outstanding_snapshot Float
-  
+
   loan Loan @relation(fields: [loan_id], references: [id], onDelete: Cascade)
 }
 
 model RecoveryLedgerTransaction {
-  id                     Int      @id @default(autoincrement())
+  id                     Int       @id @default(autoincrement())
   loan_id                Int
   date                   DateTime
   total_amount_received  Float
   allocated_to_principal Float
   allocated_to_interest  Float
   allocated_to_penalty   Float
-  
+  is_deleted             Boolean   @default(false)
+  deleted_at             DateTime?
+
   loan Loan @relation(fields: [loan_id], references: [id], onDelete: Cascade)
 }
 

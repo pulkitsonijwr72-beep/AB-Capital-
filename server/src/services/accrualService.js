@@ -32,14 +32,16 @@ export async function accrueForLoan(loan, targetDate, tx) {
   const maturityDateObj = new Date(loan.maturity_due_date);
   const dpd = differenceInCalendarDays(startOfDay, new Date(maturityDateObj.getFullYear(), maturityDateObj.getMonth(), maturityDateObj.getDate(), 0, 0, 0, 0));
   
-  // Calculate Interest Accrued today
+  // Calculate Interest Accrued today — divisor depends on interest_period
+  // Rate is always entered as % per annum; we convert to daily equivalent
   let interestAccrued = 0.0;
+  const periodDivisor = loan.interest_period === 'Weekly' ? 7 : loan.interest_period === 'Monthly' ? 30 : 365;
   if (loan.interest_type === 'Simple') {
-    // Interest on remaining principal: remaining_principal * (rate / 100) / 365
-    interestAccrued = (loan.remaining_principal * (loan.interest_rate_percentage / 100)) / 365;
+    // Simple: accrues on remaining (reducing) principal
+    interestAccrued = (loan.remaining_principal * (loan.interest_rate_percentage / 100)) / periodDivisor;
   } else if (loan.interest_type === 'Flat') {
-    // Flat interest on total principal: principal_disbursed * (rate / 100) / 365
-    interestAccrued = (loan.principal_disbursed * (loan.interest_rate_percentage / 100)) / 365;
+    // Flat: accrues always on the original disbursed principal
+    interestAccrued = (loan.principal_disbursed * (loan.interest_rate_percentage / 100)) / periodDivisor;
   }
   
   interestAccrued = Math.round(interestAccrued * 100) / 100;
