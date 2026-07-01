@@ -90,7 +90,7 @@ export async function createLoan(req, res) {
     return res.status(400).json({ error: 'All primary loan parameters are required.' });
   }
 
-  const validPeriods = ['Weekly', 'Monthly', 'Yearly'];
+  const validPeriods = ['Daily', 'Weekly', 'Monthly', 'Yearly'];
   const resolvedPeriod = validPeriods.includes(interest_period) ? interest_period : 'Yearly';
 
   const validTypes = ['Flat', 'Simple'];
@@ -147,16 +147,16 @@ export async function createLoan(req, res) {
 
       const tiersToCreate = penalty_tiers && penalty_tiers.length > 0
         ? penalty_tiers.map(t => ({
-            loan_id: createdLoan.id,
-            start_day_overdue: parseInt(t.start_day_overdue),
-            end_day_overdue: t.end_day_overdue ? parseInt(t.end_day_overdue) : null,
-            penalty_amount_per_day: parseFloat(t.penalty_amount_per_day)
-          }))
+          loan_id: createdLoan.id,
+          start_day_overdue: parseInt(t.start_day_overdue),
+          end_day_overdue: t.end_day_overdue ? parseInt(t.end_day_overdue) : null,
+          penalty_amount_per_day: parseFloat(t.penalty_amount_per_day)
+        }))
         : [
-            { loan_id: createdLoan.id, start_day_overdue: 1, end_day_overdue: 10, penalty_amount_per_day: 100.0 },
-            { loan_id: createdLoan.id, start_day_overdue: 11, end_day_overdue: 30, penalty_amount_per_day: 250.0 },
-            { loan_id: createdLoan.id, start_day_overdue: 31, end_day_overdue: null, penalty_amount_per_day: 500.0 }
-          ];
+          { loan_id: createdLoan.id, start_day_overdue: 1, end_day_overdue: 10, penalty_amount_per_day: 100.0 },
+          { loan_id: createdLoan.id, start_day_overdue: 11, end_day_overdue: 30, penalty_amount_per_day: 250.0 },
+          { loan_id: createdLoan.id, start_day_overdue: 31, end_day_overdue: null, penalty_amount_per_day: 500.0 }
+        ];
 
       await tx.penaltyTierConfig.createMany({ data: tiersToCreate });
 
@@ -208,7 +208,7 @@ export async function updateLoan(req, res) {
       detail: changes.length > 0 ? changes.join('; ') : 'Minor update applied.'
     });
 
-    const validPeriods = ['Weekly', 'Monthly', 'Yearly'];
+    const validPeriods = ['Daily', 'Weekly', 'Monthly', 'Yearly'];
 
     const updated = await prisma.loan.update({
       where: { id: parseInt(id) },
@@ -248,6 +248,79 @@ export async function softDeleteLoan(req, res) {
     return res.json({ success: true, message: `Loan L-${id} moved to Trash Bin. You have 30 days to restore.` });
   } catch (error) {
     console.error('Error soft-deleting loan:', error);
+    return res.status(500).json({ error: 'Internal Server Error' });
+  }
+}
+
+/**
+ * Replaces all penalty tier configs for a loan.
+ * Accepts body: { tiers: [{ start_day_overdue, end_day_overdue, penalty_amount_per_day }] }
+ */
+export async function updatePenaltyTiers(req, res) {
+  const { id } = req.params;
+  const { tiers } = req.body;
+
+  if (!Array.isArray(tiers) || tiers.length === 0) {
+    return res.status(400).json({ error: 'tiers must be a non-empty array.' });
+  }
+
+  // Validate each tier
+  for (let i = 0; i < tiers.length; i++) {
+    const t = tiers[i];
+    const start = parseInt(t.start_day_overdue);
+    const amount = parseFloat(t.penalty_amount_per_day);
+    if (isNaN(start) || start < 1) return res.status(400).json({ error: `Tier ${i + 1}: start_day_overdue must be >= 1.` });
+    if (isNaN(amount) || amount < 0) return res.status(400).json({ error: `Tier ${i + 1}: penalty_amount_per_day must be >= 0.` });
+    if (t.end_day_overdue !== null && t.end_day_overdue !== '' && t.end_day_overdue !== undefined) {
+      const end = parseInt(t.end_day_overdue);
+      if (isNaN(end) || end < start) return res.status(400).json({ error: `Tier ${i + 1}: end_day_overdue must be >= start_day_overdue.` });
+    }
+  }
+
+  try {
+    const loan = await prisma.loan.findUnique({ where: { id: parseInt(id), is_deleted: false } });
+    if (!loan) return res.status(404).json({ error: 'Loan not found.' });
+
+    const newLog = appendAuditEntry(loan.edit_log, {
+      action: 'UPDATED',
+      timestamp: new Date().toISOString(),
+      by: 'Admin',
+      detail: `Penalty tiers updated: ${tiers.length} tier(s) configured.`
+    });
+
+    await prisma.$transaction(async (tx) => {
+      // Delete existing tiers
+      await tx.penaltyTierConfig.deleteMany({ where: { loan_id: parseInt(id) } });
+
+      // Insert new tiers
+      await tx.penaltyTierConfig.createMany({
+        data: tiers.map(t => ({
+          loan_id: parseInt(id),
+          start_day_overdue: parseInt(t.start_day_overdue),
+          end_day_overdue: (t.end_day_overdue !== null && t.end_day_overdue !== '' && t.end_day_overdue !== undefined)
+            ? parseInt(t.end_day_overdue)
+            : null,
+          penalty_amount_per_day: parseFloat(t.penalty_amount_per_day)
+        }))
+      });
+
+      await tx.loan.update({
+        where: { id: parseInt(id) },
+        data: { edit_log: newLog }
+      });
+    });
+
+    const updatedLoan = await prisma.loan.findUnique({
+      where: { id: parseInt(id) },
+      include: { penalty_tier_configs: { orderBy: { start_day_overdue: 'asc' } } }
+    });
+
+    return res.json({
+      ...updatedLoan,
+      edit_log: parseLog(updatedLoan.edit_log)
+    });
+  } catch (error) {
+    console.error('Error updating penalty tiers:', error);
     return res.status(500).json({ error: 'Internal Server Error' });
   }
 }

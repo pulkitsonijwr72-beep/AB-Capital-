@@ -1,11 +1,13 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { API_BASE } from '../config';
+import { authFetch } from '../utils/authFetch';
 
 const ClockContext = createContext(null);
 
 export function ClockProvider({ children }) {
   const [systemState, setSystemState] = useState(null);
-  const [selectedDate, setSelectedDate] = useState('');
+  // Default to today's real-world date on mount; syncs to virtual system date once API responds
+  const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [stats, setStats] = useState(null);
   const [isLoadingStats, setIsLoadingStats] = useState(false);
   const [isAdvancingTime, setIsAdvancingTime] = useState(false);
@@ -15,10 +17,10 @@ export function ClockProvider({ children }) {
   // Fetch virtual system date state
   const fetchSystemState = useCallback(async () => {
     try {
-      const res = await fetch(`${API_BASE}/clock/state`);
+      const res = await authFetch(`${API_BASE}/clock/state`);
       if (!res.ok) throw new Error('Failed to fetch system state');
       const data = await res.json();
-      
+
       setSystemState(prev => {
         // If system date changed or manual override status changed, update state
         if (!prev || prev.system_date !== data.system_date || prev.is_manual_override !== data.is_manual_override) {
@@ -45,7 +47,7 @@ export function ClockProvider({ children }) {
     if (!dateStr) return;
     setIsLoadingStats(true);
     try {
-      const res = await fetch(`${API_BASE}/dashboard/metrics?date=${dateStr}`);
+      const res = await authFetch(`${API_BASE}/dashboard/metrics?date=${dateStr}`);
       if (!res.ok) throw new Error('Failed to fetch dashboard stats');
       const data = await res.json();
       setStats(data);
@@ -67,9 +69,8 @@ export function ClockProvider({ children }) {
     setIsAdvancingTime(true);
     setTimeSimulationLogs(null);
     try {
-      const res = await fetch(`${API_BASE}/clock/advance`, {
+      const res = await authFetch(`${API_BASE}/clock/advance`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ system_date: targetDate })
       });
       const data = await res.json();
@@ -98,9 +99,8 @@ export function ClockProvider({ children }) {
     setIsAdvancingTime(true);
     setTimeSimulationLogs(null);
     try {
-      const res = await fetch(`${API_BASE}/clock/sync`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
+      const res = await authFetch(`${API_BASE}/clock/sync`, {
+        method: 'POST'
       });
       const data = await res.json();
       if (res.ok) {

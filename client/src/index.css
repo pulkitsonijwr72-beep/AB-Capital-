@@ -1,33 +1,305 @@
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+/* ── Base ─────────────────────────────────────────────────────────────────── */
 @layer base {
+
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
   body {
-    background-color: #0b1329; /* Deep navy */
+    background-color: #09090B;
+    color: #F4F4F5;
+    font-family: 'Plus Jakarta Sans', 'Inter', system-ui, sans-serif;
+    font-size: 13px;
+    line-height: 1.55;
+    letter-spacing: -0.01em;
+  }
+
+  input[type="date"]::-webkit-calendar-picker-indicator {
+    filter: invert(0.5) sepia(0.2) saturate(0.3) hue-rotate(20deg);
+    cursor: pointer;
+    opacity: 0.6;
+  }
+
+  input[type="date"]::-webkit-calendar-picker-indicator:hover {
+    opacity: 1;
+  }
+
+  select option {
+    background-color: #1A1820;
+    color: #D4D4D8;
   }
 }
 
-/* Custom Scrollbar for high-end look */
+/* ── Scrollbar ────────────────────────────────────────────────────────────── */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 4px;
+  height: 4px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #0b1329;
+  background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #1e293b;
-  border-radius: 4px;
+  background: rgba(230, 193, 122, 0.18);
+  border-radius: 999px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #334155;
+  background: rgba(230, 193, 122, 0.35);
 }
 
-/* Custom smooth transitions */
+/* ── Transitions ──────────────────────────────────────────────────────────── */
 .transition-premium {
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ── Card surfaces ────────────────────────────────────────────────────────── */
+/* Obsidian card with subtle gold ambient top glow */
+.card-obsidian {
+  background-color: #141417;
+  border: 1px solid #232326;
+  border-radius: 12px;
+  position: relative;
+  overflow: hidden;
+}
+
+.card-obsidian::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse 65% 38% at 50% -5%, rgba(230, 193, 122, 0.07) 0%, transparent 70%);
+  pointer-events: none;
+  border-radius: inherit;
+}
+
+/* Raised surface — inputs and inner panels */
+.surface-raised {
+  background-color: #1A1820;
+  border: 1px solid #232326;
+  border-radius: 8px;
+  transition: border-color 0.2s ease;
+}
+
+.surface-raised:focus-within {
+  border-color: rgba(230, 193, 122, 0.35);
+  box-shadow: 0 0 0 2px rgba(230, 193, 122, 0.08);
+}
+
+/* ── Input fields ─────────────────────────────────────────────────────────── */
+.input-obsidian {
+  background-color: #1A1820;
+  border: 1px solid #232326;
+  color: #D4D4D8;
+  border-radius: 8px;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.input-obsidian::placeholder {
+  color: #52525B;
+}
+
+.input-obsidian:focus {
+  outline: none;
+  border-color: rgba(230, 193, 122, 0.4);
+  box-shadow: 0 0 0 3px rgba(230, 193, 122, 0.08);
+}
+
+/* ── Champagne Gold CTA button ────────────────────────────────────────────── */
+.btn-gold {
+  background: linear-gradient(135deg, #E6C17A 0%, #F0CF90 100%);
+  color: #09090B;
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 0.02em;
+  border-radius: 9px;
+  border: none;
+  transition: all 0.2s ease;
+  box-shadow: 0 0 14px rgba(230, 193, 122, 0.25);
+}
+
+.btn-gold:hover {
+  background: linear-gradient(135deg, #F0CF90 0%, #F9DFA8 100%);
+  box-shadow: 0 0 22px rgba(230, 193, 122, 0.4);
+}
+
+.btn-gold:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+/* Ghost / secondary button */
+.btn-ghost {
+  background: transparent;
+  border: 1px solid #232326;
+  color: #71717A;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.btn-ghost:hover {
+  border-color: rgba(230, 193, 122, 0.25);
+  color: #E6C17A;
+  background: rgba(230, 193, 122, 0.05);
+}
+
+/* ── Active sidebar nav ───────────────────────────────────────────────────── */
+.nav-active {
+  background: linear-gradient(90deg, rgba(230, 193, 122, 0.12) 0%, rgba(230, 193, 122, 0.03) 100%);
+  border-left: 2px solid #E6C17A;
+  border-radius: 0 8px 8px 0;
+  box-shadow: inset 2px 0 8px rgba(230, 193, 122, 0.08);
+}
+
+.nav-item {
+  border-left: 2px solid transparent;
+  border-radius: 0 8px 8px 0;
+  transition: all 0.18s ease;
+}
+
+.nav-item:hover {
+  background: rgba(192, 179, 255, 0.06);
+  border-left-color: rgba(192, 179, 255, 0.3);
+  color: #D4D4D8;
+}
+
+/* ── Gold gradient text ───────────────────────────────────────────────────── */
+.text-gold-gradient {
+  background: linear-gradient(135deg, #E6C17A 0%, #F5D9A0 50%, #C8A855 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ── Status pills ─────────────────────────────────────────────────────────── */
+.pill-active {
+  background: rgba(74, 222, 128, 0.1);
+  border: 1px solid rgba(74, 222, 128, 0.22);
+  color: #4ADE80;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.pill-pending {
+  background: rgba(230, 193, 122, 0.1);
+  border: 1px solid rgba(230, 193, 122, 0.22);
+  color: #E6C17A;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.pill-overdue {
+  background: rgba(248, 113, 113, 0.1);
+  border: 1px solid rgba(248, 113, 113, 0.22);
+  color: #F87171;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.pill-warning {
+  background: rgba(252, 211, 77, 0.1);
+  border: 1px solid rgba(252, 211, 77, 0.22);
+  color: #FCD34D;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.pill-violet {
+  background: rgba(192, 179, 255, 0.1);
+  border: 1px solid rgba(192, 179, 255, 0.22);
+  color: #C0B3FF;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* ── Table rows ───────────────────────────────────────────────────────────── */
+.table-row-obsidian {
+  transition: background 0.15s ease;
+}
+
+.table-row-obsidian:hover {
+  background: rgba(26, 24, 32, 0.8);
+}
+
+/* ── Metric value highlight ───────────────────────────────────────────────── */
+.metric-hero {
+  font-size: 24px;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+}
+
+.metric-sub {
+  font-size: 11px;
+  color: #71717A;
+  letter-spacing: -0.01em;
+}
+
+/* ── Arc speedometer SVG glow ─────────────────────────────────────────────── */
+.arc-glow {
+  filter: drop-shadow(0 0 6px rgba(230, 193, 122, 0.5));
+}
+
+.arc-glow-violet {
+  filter: drop-shadow(0 0 6px rgba(192, 179, 255, 0.5));
+}
+
+/* ── Shimmer loading ──────────────────────────────────────────────────────── */
+@keyframes shimmer {
+  0% {
+    background-position: -600px 0;
+  }
+
+  100% {
+    background-position: 600px 0;
+  }
+}
+
+.shimmer {
+  background: linear-gradient(90deg, rgba(230, 193, 122, 0) 0%, rgba(230, 193, 122, 0.06) 50%, rgba(230, 193, 122, 0) 100%);
+  background-size: 600px 100%;
+  animation: shimmer 2s infinite linear;
+}
+
+/* ── Focus ring ───────────────────────────────────────────────────────────── */
+:focus-visible {
+  outline: 2px solid rgba(230, 193, 122, 0.45);
+  outline-offset: 2px;
 }

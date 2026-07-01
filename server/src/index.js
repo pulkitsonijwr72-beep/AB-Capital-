@@ -1,15 +1,19 @@
 import express from 'express';
 import cors from 'cors';
 import bodyParser from 'body-parser';
+import cookieParser from 'cookie-parser';
+import rateLimit from 'express-rate-limit';
 import dotenv from 'dotenv';
 import { PrismaClient } from '@prisma/client';
 
-import { getFunds, createFund } from './controllers/fundController.js';
+import { getFunds, createFund, getFundPaymentStatus } from './controllers/fundController.js';
 import { getBorrowers, getBorrowerById, createBorrower, updateBorrower, softDeleteBorrower, getPaymentStatus } from './controllers/borrowerController.js';
-import { getLoans, getLoanById, createLoan, updateLoan, softDeleteLoan } from './controllers/loanController.js';
+import { getLoans, getLoanById, createLoan, updateLoan, softDeleteLoan, updatePenaltyTiers } from './controllers/loanController.js';
 import { getTransactions, createTransaction, softDeleteTransaction } from './controllers/transactionController.js';
 import { getSystemState, updateSystemDate, syncSystemDate, getDashboardStats } from './controllers/systemController.js';
 import { getTrashItems, restoreItem, purgeItem, purgeExpiredTrashItems } from './controllers/trashController.js';
+import { register, login, logout, refresh, forgotPassword, resetPassword, getMe } from './controllers/authController.js';
+import { requireAuth } from './middleware/requireAuth.js';
 import { catchUpAccruals } from './services/accrualService.js';
 
 dotenv.config();
@@ -20,54 +24,80 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 
 // Enable CORS for frontend Vite dev server (default port 5173 or other origins)
-app.use(cors());
+app.use(cors({
+  origin: ['http://localhost:5173', 'http://localhost:5174'],
+  credentials: true
+}));
 
 // Configure JSON body parsers
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
+app.use(cookieParser());
+
+// Rate limiter for auth routes (max 20 requests per 15 min per IP)
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests. Please try again later.' }
+});
 
 // --- API ROUTES ---
 
+// 0. Auth (public)
+app.post('/api/auth/register', authLimiter, register);
+app.post('/api/auth/login', authLimiter, login);
+app.post('/api/auth/logout', logout);
+app.post('/api/auth/refresh', refresh);
+app.post('/api/auth/forgot-password', authLimiter, forgotPassword);
+app.post('/api/auth/reset-password', authLimiter, resetPassword);
+app.get('/api/auth/me', requireAuth, getMe);
+
+// --- API ROUTES (all protected) ---
+
 // 1. Funds
-app.get('/api/funds', getFunds);
-app.post('/api/funds', createFund);
+app.get('/api/funds', requireAuth, getFunds);
+app.post('/api/funds', requireAuth, createFund);
+app.get('/api/funds/:id/payment-status', requireAuth, getFundPaymentStatus);
 
 // 2. Borrowers
-app.get('/api/borrowers/payment-status', getPaymentStatus);
-app.get('/api/borrowers', getBorrowers);
-app.post('/api/borrowers', createBorrower);
-app.get('/api/borrowers/:id', getBorrowerById);
-app.put('/api/borrowers/:id', updateBorrower);
-app.delete('/api/borrowers/:id', softDeleteBorrower);
+app.get('/api/borrowers/payment-status', requireAuth, getPaymentStatus);
+app.get('/api/borrowers', requireAuth, getBorrowers);
+app.post('/api/borrowers', requireAuth, createBorrower);
+app.get('/api/borrowers/:id', requireAuth, getBorrowerById);
+app.put('/api/borrowers/:id', requireAuth, updateBorrower);
+app.delete('/api/borrowers/:id', requireAuth, softDeleteBorrower);
 
 // 3. Loans
-app.get('/api/loans', getLoans);
-app.post('/api/loans', createLoan);
-app.get('/api/loans/:id', getLoanById);
-app.put('/api/loans/:id', updateLoan);
-app.delete('/api/loans/:id', softDeleteLoan);
+app.get('/api/loans', requireAuth, getLoans);
+app.post('/api/loans', requireAuth, createLoan);
+app.get('/api/loans/:id', requireAuth, getLoanById);
+app.put('/api/loans/:id', requireAuth, updateLoan);
+app.delete('/api/loans/:id', requireAuth, softDeleteLoan);
+app.put('/api/loans/:id/penalty-tiers', requireAuth, updatePenaltyTiers);
 
 // 4. Recovery Transactions (Waterfall engine)
-app.get('/api/transactions', getTransactions);
-app.post('/api/transactions', createTransaction);
-app.delete('/api/transactions/:id', softDeleteTransaction);
+app.get('/api/transactions', requireAuth, getTransactions);
+app.post('/api/transactions', requireAuth, createTransaction);
+app.delete('/api/transactions/:id', requireAuth, softDeleteTransaction);
 
 // 5. Trash Bin Management
-app.get('/api/trash', getTrashItems);
-app.post('/api/trash/restore/:type/:id', restoreItem);
-app.delete('/api/trash/purge-now/:type/:id', purgeItem);
+app.get('/api/trash', requireAuth, getTrashItems);
+app.post('/api/trash/restore/:type/:id', requireAuth, restoreItem);
+app.delete('/api/trash/purge-now/:type/:id', requireAuth, purgeItem);
 
 // 6. System Config, Clock & Time Simulation
-app.get('/api/clock/state', getSystemState);
-app.post('/api/clock/advance', updateSystemDate);
-app.post('/api/clock/sync', syncSystemDate);
-app.get('/api/dashboard/metrics', getDashboardStats);
+app.get('/api/clock/state', requireAuth, getSystemState);
+app.post('/api/clock/advance', requireAuth, updateSystemDate);
+app.post('/api/clock/sync', requireAuth, syncSystemDate);
+app.get('/api/dashboard/metrics', requireAuth, getDashboardStats);
 
 // Legacy aliases for compatibility
-app.get('/api/system', getSystemState);
-app.post('/api/system', updateSystemDate);
-app.post('/api/system/sync', syncSystemDate);
-app.get('/api/system/dashboard', getDashboardStats);
+app.get('/api/system', requireAuth, getSystemState);
+app.post('/api/system', requireAuth, updateSystemDate);
+app.post('/api/system/sync', requireAuth, syncSystemDate);
+app.get('/api/system/dashboard', requireAuth, getDashboardStats);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
@@ -113,7 +143,7 @@ app.listen(PORT, () => {
   console.log(` AB CAPITAL LEDGER ENGINE STARTED`);
   console.log(` Running on port: http://localhost:${PORT}`);
   console.log(`=========================================`);
-  
+
   scheduleMidnightAccruals();
   purgeExpiredTrashItems().catch(err => console.error('[Boot] Error running initial trash purge:', err));
 });
